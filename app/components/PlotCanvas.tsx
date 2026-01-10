@@ -161,46 +161,11 @@ export default function PlotCanvas({ series, markerX }: PlotCanvasProps) {
     ctx.textAlign = "center";
     ctx.fillText(minX.toFixed(1), padding.left, height - 8);
     ctx.fillText(maxX.toFixed(1), padding.left + chartW, height - 8);
-
-    // Legend
-    if (series.length > 1) {
-      const legendX = padding.left + chartW - 10;
-      let legendY = padding.top + 10;
-
-      ctx.textAlign = "right";
-      ctx.font = "11px 'Space Grotesk', sans-serif";
-
-      series.forEach((s, idx) => {
-        const y = legendY + idx * 18;
-
-        // Legend background
-        ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
-        ctx.fillRect(legendX - 100, y - 10, 100, 16);
-
-        // Legend line sample
-        ctx.strokeStyle = s.color;
-        ctx.lineWidth = 2.5;
-        if (s.dash) {
-          ctx.setLineDash(s.dash);
-        }
-        ctx.beginPath();
-        ctx.moveTo(legendX - 95, y);
-        ctx.lineTo(legendX - 70, y);
-        ctx.stroke();
-        if (s.dash) {
-          ctx.setLineDash([]);
-        }
-
-        // Legend text
-        ctx.fillStyle = "#333";
-        ctx.fillText(s.name, legendX - 5, y + 4);
-      });
-    }
   }, [series, markerX]);
 
   return (
     <div className="canvas-wrap">
-      <canvas ref={canvasRef} width="640" height="320"></canvas>
+      <canvas ref={canvasRef} width="640" height="240"></canvas>
     </div>
   );
 }

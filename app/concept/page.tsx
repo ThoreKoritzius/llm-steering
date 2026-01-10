@@ -1,215 +1,238 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 
 export default function ConceptPage() {
+  const defaultDescription =
+    "Hover each part of the formula to see what it represents and how we obtain it.";
+  const [activeDescription, setActiveDescription] = useState(defaultDescription);
+
+  const setDesc = (text: string) => () => setActiveDescription(text);
+  const resetDesc = () => setActiveDescription(defaultDescription);
+  const layerCount = 15;
+  const hookLayerIndex = 9; // using LAYER = 9 from the example notebook (zero-based)
+
   return (
     <div className="concept-page">
-      <div className="concept-container">
-        <header className="concept-header">
-          <h1>What is Model Steering?</h1>
+      <div className="concept-sheet">
+        <header className="concept-hero">
+          <span className="concept-eyebrow">Concept Note</span>
+          <h1>Model Steering</h1>
           <p className="concept-lead">
-            Understanding how to control language models without changing prompts
+            A concise summary of how steering uses sparse autoencoder features to shift a model's
+            internal activations without changing the prompt.
+          </p>
+          <p className="concept-source">
+            Based on Neuronpedia's SAE feature work. Reference:{" "}
+            <a href="https://www.neuronpedia.org/" target="_blank" rel="noreferrer">
+              neuronpedia.org
+            </a>
           </p>
         </header>
 
+        <section className="concept-section concept-definition">
+          <div className="concept-section-header full">
+            <h2>Definition</h2>
+          </div>
+          <div className="concept-definition-grid">
+            <div className="concept-formula-card">
+              <div className="concept-formula-title">Steering update</div>
+              <div className="concept-formula-math">
+                <span
+                  className="concept-formula-var concept-formula-term"
+                  onMouseEnter={setDesc("h_l′ is the steered layer output returned by the hook.")}
+                  onMouseLeave={resetDesc}
+                >
+                  h<sub>l</sub>
+                  <sup>′</sup>
+                </span>
+                <span className="concept-formula-op">=</span>
+                <span
+                  className="concept-formula-var concept-formula-term"
+                  onMouseEnter={setDesc("h_l is the original layer output before steering is applied.")}
+                  onMouseLeave={resetDesc}
+                >
+                  h<sub>l</sub>
+                </span>
+                <span className="concept-formula-op">+</span>
+                <span
+                  className="concept-formula-var concept-formula-term"
+                  onMouseEnter={setDesc(
+                    "a is the steering coefficient (strength_multiple × steering_strength)."
+                  )}
+                  onMouseLeave={resetDesc}
+                >
+                  a
+                </span>
+                <span className="concept-formula-op">*</span>
+                <span
+                  className="concept-formula-var concept-formula-term"
+                  onMouseEnter={setDesc(
+                    "v_f is the SAE decoder vector for feature f (sae.W_dec[feature_index])."
+                  )}
+                  onMouseLeave={resetDesc}
+                >
+                  v<sub>f</sub>
+                </span>
+              </div>
+              <p className="concept-formula-note">
+                The hook replaces the layer output with a shifted activation:
+                <span className="concept-inline-code">hs = hs + coefficient * steering_vector</span>. a
+                is the coefficient, v<sub>f</sub> is the SAE decoder vector for feature f.
+              </p>
+              <div className="concept-formula-explainer">{activeDescription}</div>
+            </div>
+
+            <div className="concept-visual-card">
+              <div className="concept-section-header">
+                <h3>Where the hook applies</h3>
+                <p>
+                  We register a forward hook on one transformer layer. It adds the scaled steering
+                  vector to that layer&apos;s activations.
+                </p>
+              </div>
+              <div className="layer-chip-row" aria-label="Transformer layers with hooked layer highlighted">
+                {Array.from({ length: layerCount }, (_, i) => {
+                  const isHook = i === hookLayerIndex;
+                  return (
+                    <div key={i} className={`layer-chip ${isHook ? "layer-chip-active" : ""}`}>
+                      {isHook ? (
+                        <>
+                          <span className="chip-segment chip-attn" title="self_attn" />
+                          <span className="chip-segment chip-mlp" title="mlp" />
+                        </>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="layer-chip-legend">
+                <span className="chip-key chip-key-attn" /> self_attn &nbsp;&nbsp;
+                <span className="chip-key chip-key-mlp" /> mlp &nbsp;&nbsp;
+                <span className="chip-key chip-key-hook" /> hooked layer (index {hookLayerIndex}, zero-based)
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section className="concept-section">
-          <h2>The Core Idea</h2>
-          <p>
-            <strong>Model steering</strong> is a technique for influencing a language model's behavior
-            by directly modifying its internal activations, rather than by changing the input prompt.
-            Think of it as "nudging" the model from the inside.
-          </p>
-          <div className="concept-box highlight">
+          <div className="concept-section-header">
+            <h2>How features are found (Neuronpedia + SAEs)</h2>
             <p>
-              <strong>Key insight:</strong> Instead of asking the model to "act like a cat" in the prompt,
-              we can inject a learned "cat direction" into the model's hidden states to achieve similar effects.
+              Neuronpedia identifies "features" in LLMs by training sparse autoencoders (SAEs) on
+              internal activations from a frozen model.
+            </p>
+          </div>
+          <div className="concept-grid">
+            <article className="concept-card">
+              <h3>1. Collect activations</h3>
+              <p>
+                Run large amounts of text through the LLM. At a chosen layer or sublayer, record
+                the activation vector for each token. The base model is not changed.
+              </p>
+            </article>
+            <article className="concept-card">
+              <h3>2. Train a sparse autoencoder</h3>
+              <p>
+                The encoder maps activation vectors to a larger set of latent feature activations,
+                and the decoder maps those latents back to the original activation space. Training
+                optimizes reconstruction loss.
+              </p>
+            </article>
+            <article className="concept-card">
+              <h3>3. Enforce sparsity</h3>
+              <p>
+                Add an L1 penalty so only a few latents fire per token. This encourages
+                disentangled, interpretable features instead of superposition.
+              </p>
+            </article>
+          </div>
+          <div className="concept-callout">
+            <h3>Why this reveals features</h3>
+            <p>
+              With sparsity, each latent behaves like a dictionary entry. Interpret it by finding
+              text snippets that maximize the latent, then optionally steer the model by increasing
+              or decreasing that latent.
             </p>
           </div>
         </section>
 
         <section className="concept-section">
-          <h2>Steering vs. Prompting</h2>
-          <div className="comparison-grid">
-            <div className="comparison-card prompting">
-              <h3>Traditional Prompting</h3>
-              <div className="comparison-content">
-                <p><strong>How it works:</strong></p>
-                <p>
-                  Add instructions to the input text like "You are a helpful assistant" or
-                  "Please respond in a formal tone."
-                </p>
-                <p><strong>What changes:</strong></p>
-                <ul>
-                  <li>The model sees different input tokens</li>
-                  <li>Output distribution shifts based on prompt context</li>
-                  <li>Works through the model's normal text processing</li>
-                </ul>
-                <p><strong>Limitations:</strong></p>
-                <ul>
-                  <li>Uses up context window space</li>
-                  <li>Model may ignore instructions</li>
-                  <li>Difficult to fine-tune the strength of effect</li>
-                </ul>
-              </div>
-            </div>
-
-            <div className="comparison-card steering">
-              <h3>Model Steering</h3>
-              <div className="comparison-content">
-                <p><strong>How it works:</strong></p>
-                <p>
-                  Inject a learned vector directly into the model's hidden states at a
-                  specific layer during the forward pass.
-                </p>
-                <p><strong>What changes:</strong></p>
-                <ul>
-                  <li>Internal activation patterns are modified</li>
-                  <li>Output distribution shifts without prompt changes</li>
-                  <li>Bypasses normal token processing</li>
-                </ul>
-                <p><strong>Advantages:</strong></p>
-                <ul>
-                  <li>No context window usage</li>
-                  <li>Precise control with coefficient tuning</li>
-                  <li>Can achieve effects hard to prompt for</li>
-                </ul>
-              </div>
-            </div>
+          <div className="concept-section-header">
+            <h2>Steering procedure used in this viewer</h2>
+            <p>
+              For each feature being steered, we compute a coefficient, pull the decoder vector,
+              and add a scaled version of that vector to the activations.
+            </p>
+          </div>
+          <ol className="concept-steps">
+            <li>
+              <strong>Compute the coefficient.</strong> Multiply steering strength by the strength
+              multiple.
+            </li>
+            <li>
+              <strong>Get the steering vector.</strong> Use the SAE decoder weights:
+              <span className="concept-inline-code">sae.W_dec[feature_index]</span>.
+            </li>
+            <li>
+              <strong>Apply the update.</strong> Add
+              <span className="concept-inline-code">coefficient * steering_vector</span> to the
+              activations.
+            </li>
+          </ol>
+          <div className="concept-note">
+            <h3>Why we do not scale by top activation (yet)</h3>
+            <p>
+              A common variant multiplies by the top known activation value, and that is valid. We
+              do not do it here because:
+            </p>
+            <ul>
+              <li>
+                We may be missing activations for very sparse features (or have too few test prompts),
+                but we still want those features to be steerable.
+              </li>
+              <li>
+                We want results to be consistent across dashboards, even if different runs have
+                different recorded top activations.
+              </li>
+            </ul>
+            <p>We may add the top-activation scaling option in the future.</p>
           </div>
         </section>
 
         <section className="concept-section">
-          <h2>How Steering Works</h2>
-          <div className="steps-container">
-            <div className="step-card">
-              <div className="step-number">1</div>
-              <div className="step-content">
-                <h3>Learn a Direction</h3>
-                <p>
-                  Identify a direction in activation space that corresponds to a desired behavior.
-                  This is typically done by comparing model states with and without certain behaviors.
-                </p>
-                <p className="step-example">
-                  Example: Find the "sycophancy direction" by comparing responses when the model
-                  agrees vs. disagrees with the user.
-                </p>
-              </div>
-            </div>
-
-            <div className="step-card">
-              <div className="step-number">2</div>
-              <div className="step-content">
-                <h3>Choose a Layer</h3>
-                <p>
-                  Select which transformer layer to inject the steering vector into. Different
-                  layers can produce different effects—earlier layers affect lower-level features,
-                  later layers affect higher-level semantics.
-                </p>
-                <p className="step-example">
-                  Example: Layer 20 in Gemma2-9B (middle of the 42-layer stack) often works well
-                  for behavioral steering.
-                </p>
-              </div>
-            </div>
-
-            <div className="step-card">
-              <div className="step-number">3</div>
-              <div className="step-content">
-                <h3>Apply with Coefficient</h3>
-                <p>
-                  During inference, add the steering vector (scaled by a coefficient) to the hidden
-                  states at the chosen layer. The coefficient controls the strength of the effect.
-                </p>
-                <p className="step-example">
-                  Example: coefficient = 0.0 means no steering, coefficient = 10.0 means strong
-                  steering in that direction.
-                </p>
-              </div>
-            </div>
-
-            <div className="step-card">
-              <div className="step-number">4</div>
-              <div className="step-content">
-                <h3>Observe Effects</h3>
-                <p>
-                  The modified activations propagate through the rest of the network, changing
-                  the final output distribution. Token probabilities shift without any prompt changes.
-                </p>
-                <p className="step-example">
-                  Example: With cat-steering applied, the model becomes more likely to use
-                  cat-related words even with a neutral prompt.
-                </p>
-              </div>
-            </div>
+          <div className="concept-section-header">
+            <h2>Interpretation and usage flow</h2>
+            <p>
+              Sparse features become interpretable handles. You can locate contexts where a latent
+              fires, understand the shared concept, and then steer with that feature.
+            </p>
+          </div>
+          <div className="concept-flow">
+            <div className="concept-flow-item">Frozen LLM activations</div>
+            <div className="concept-flow-arrow">-&gt;</div>
+            <div className="concept-flow-item">SAE encoder</div>
+            <div className="concept-flow-arrow">-&gt;</div>
+            <div className="concept-flow-item">Sparse features</div>
+            <div className="concept-flow-arrow">-&gt;</div>
+            <div className="concept-flow-item">Interpret and steer</div>
+          </div>
+          <div className="concept-panel">
+            <h3>Gemma Scope</h3>
+            <p>
+              In Gemma Scope, Google trained SAEs across every layer and sublayer output of the
+              Gemma models, producing hundreds of SAEs and millions of learned latents, then hosted
+              them for exploration in Neuronpedia.
+            </p>
           </div>
         </section>
 
-        <section className="concept-section">
-          <h2>Understanding the Visualization</h2>
-          <div className="visual-guide">
-            <div className="visual-item">
-              <div className="visual-color-box red"></div>
-              <div className="visual-text">
-                <strong>Red tokens:</strong> More likely under steering/prompting
-              </div>
-            </div>
-            <div className="visual-item">
-              <div className="visual-color-box blue"></div>
-              <div className="visual-text">
-                <strong>Blue tokens:</strong> Less likely under steering/prompting
-              </div>
-            </div>
-            <div className="visual-item">
-              <div className="visual-color-box neutral"></div>
-              <div className="visual-text">
-                <strong>Neutral tokens:</strong> Probability unchanged
-              </div>
-            </div>
-          </div>
+        <section className="concept-section concept-cta">
+          <h2>Explore a real steering run</h2>
           <p>
-            Each token in the generated text is colored by how much its log probability changed
-            (Δ logprob) compared to the baseline. This makes the steering effect visible at a glance.
-          </p>
-        </section>
-
-        <section className="concept-section">
-          <h2>Research Applications</h2>
-          <div className="applications-grid">
-            <div className="application-card">
-              <h3>Safety Research</h3>
-              <p>
-                Identify and mitigate harmful behaviors by steering models away from dangerous
-                outputs without retraining.
-              </p>
-            </div>
-            <div className="application-card">
-              <h3>Interpretability</h3>
-              <p>
-                Understand what different activation directions represent by observing how
-                steering along them changes model behavior.
-              </p>
-            </div>
-            <div className="application-card">
-              <h3>Control</h3>
-              <p>
-                Fine-tune model behavior for specific tasks or tones without fine-tuning
-                the entire model.
-              </p>
-            </div>
-            <div className="application-card">
-              <h3>Analysis</h3>
-              <p>
-                Compare steering to prompting to understand how models process instructions
-                versus internal biases.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="concept-section cta-section">
-          <h2>Try it yourself</h2>
-          <p>
-            Use the viewer to explore a real steering experiment on Gemma2-9B. See how different
-            coefficients affect output probabilities and compare steering to prompt baselines.
+            Use the viewer to inspect how different coefficients change output probabilities and
+            compare steering results to prompt-only baselines.
           </p>
           <Link href="/viewer" className="btn btn-primary btn-large">
             Open Viewer

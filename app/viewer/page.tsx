@@ -11,6 +11,7 @@ import {
 import FrameCanvas from "../components/FrameCanvas";
 import PlotCanvas from "../components/PlotCanvas";
 import HistogramCanvas from "../components/HistogramCanvas";
+import PromptDialog from "../components/PromptDialog";
 
 const ARCH_LAYER_COUNT = 42;
 
@@ -31,6 +32,9 @@ export default function ViewerPage() {
 
   const [selectedModel, setSelectedModel] = useState("Gemma2ForCausalLM");
   const [status, setStatus] = useState("Waiting for data...");
+  const [showBaseline, setShowBaseline] = useState(true);
+  const [promptDialogOpen, setPromptDialogOpen] = useState(false);
+  const [currentPromptFile, setCurrentPromptFile] = useState<string | null>(null);
 
   const loadJsonData = (data: SteeringData) => {
     if (!data || !Array.isArray(data.rows)) {
@@ -181,52 +185,44 @@ export default function ViewerPage() {
     setState((prev) => ({ ...prev, activeTab: tab }));
   };
 
+  const loadPromptFromFolder = async (folderName: string) => {
+    try {
+      setStatus(`Loading ${folderName}...`);
+
+      // Load steering run data
+      const steeringRes = await fetch(`/data/prompts/${folderName}/steering_run.json`);
+      if (steeringRes.ok) {
+        const steeringData = await steeringRes.json();
+        loadJsonData(steeringData);
+      }
+
+      // Load baseline data
+      const baselineRes = await fetch(`/data/prompts/${folderName}/prompt_baseline.json`);
+      if (baselineRes.ok) {
+        const baselineData = await baselineRes.json();
+        loadBaselineData(baselineData);
+      }
+
+      // Load vector data
+      const vectorRes = await fetch(`/data/prompts/${folderName}/steer_vector.json`);
+      if (vectorRes.ok) {
+        const vectorData = await vectorRes.json() as SteeringVector;
+        setState((prev) => ({ ...prev, steeringVector: vectorData }));
+        if (vectorData.modelId) {
+          setSelectedModel(vectorData.modelId);
+        }
+      }
+
+      setCurrentPromptFile(folderName);
+      setStatus(`Loaded ${folderName}`);
+    } catch (err: any) {
+      setStatus(`Error loading ${folderName}: ${err.message}`);
+    }
+  };
+
   useEffect(() => {
-    // Try to load default JSON
-    const loadDefault = async () => {
-      try {
-        const res = await fetch("/steering_run.json");
-        if (res.ok) {
-          const data = await res.json();
-          loadJsonData(data);
-        }
-      } catch (err) {
-        // Silently fail - user can upload manually
-      }
-    };
-
-    // Try to load baseline
-    const loadDefaultBaseline = async () => {
-      try {
-        const res = await fetch("/prompt_baseline.json");
-        if (res.ok) {
-          const data = await res.json();
-          loadBaselineData(data);
-        }
-      } catch (err) {
-        // Silently fail
-      }
-    };
-
-    // Try to load steering vector
-    const loadSteeringVector = async () => {
-      try {
-        const res = await fetch("/steer_vector.json");
-        if (res.ok) {
-          const data = await res.json() as SteeringVector;
-          setState((prev) => ({ ...prev, steeringVector: data }));
-          if (data.modelId) {
-            setSelectedModel(data.modelId);
-          }
-        }
-      } catch (err) {
-        // Silently fail
-      }
-    };
-
-    loadDefault();
-    loadDefaultBaseline();
-    loadSteeringVector();
+    // Load default folder on mount
+    loadPromptFromFolder("default");
   }, []);
 
   const getCurrentRow = (): Row | null => {
@@ -265,7 +261,7 @@ export default function ViewerPage() {
       points: entropyPoints,
     },
   ];
-  if (state.baseline && entropyPoints.length) {
+  if (showBaseline && state.baseline && entropyPoints.length) {
     const minX = Math.min(...entropyPoints.map((p) => p.x));
     const maxX = Math.max(...entropyPoints.map((p) => p.x));
     if (state.baseline.selectedRow?.next_token?.entropy != null) {
@@ -304,14 +300,14 @@ export default function ViewerPage() {
   }));
   const logprobSeries = target
     ? [
-        {
-          name: target,
-          color: "#d56a35",
-          points: logprobPoints,
-        },
-      ]
+      {
+        name: target,
+        color: "#d56a35",
+        points: logprobPoints,
+      },
+    ]
     : [];
-  if (state.baseline && logprobPoints.length && target) {
+  if (showBaseline && state.baseline && logprobPoints.length && target) {
     const minX = Math.min(...logprobPoints.map((p) => p.x));
     const maxX = Math.max(...logprobPoints.map((p) => p.x));
     if (state.baseline.selectedRow?.targets?.[target]) {
@@ -371,9 +367,9 @@ export default function ViewerPage() {
 
           <div className="header-arrow">→</div>
 
-          <div className="header-item header-prompt">
+          <div className="header-item header-prompt" onClick={() => setPromptDialogOpen(true)}>
             <label className="header-label">Prompt</label>
-            <div className="header-value">
+            <div className="header-value header-clickable">
               {state.data?.prompt || state.baseline?.data?.prompt || "No prompt loaded"}
             </div>
           </div>
@@ -389,7 +385,6 @@ export default function ViewerPage() {
             Load Data
           </label>
         </div>
-        <div className="header-status">{status}</div>
       </header>
 
       {/* Main Content */}
@@ -496,9 +491,8 @@ export default function ViewerPage() {
                       vmax={state.baseline.vmax}
                       options={{
                         title: `Instruction: ${baselineLabel(state.baseline.selectedRow!)}`,
-                        subtitle: `Δ logprob (instruction - plain) | Max tokens: ${
-                          state.baseline.data?.max_new_tokens ?? state.data?.max_new_tokens ?? ""
-                        }`,
+                        subtitle: `Δ logprob (instruction - plain) | Max tokens: ${state.baseline.data?.max_new_tokens ?? state.data?.max_new_tokens ?? ""
+                          }`,
                         legendLeft: `Less likely`,
                         legendRight: `More likely`,
                       }}
@@ -538,34 +532,98 @@ export default function ViewerPage() {
 
             {state.activeTab === "arch" && (
               <div className="arch-view">
-                <div className="arch-flow">
-                  <div className="arch-box">
-                    <strong>Embedding</strong>
-                    <span>256K vocab → 3584 dim</span>
-                  </div>
-
-                  <div className="arch-arrow">↓</div>
-
-                  <div className="arch-box decoder">
-                    <strong>Decoder Stack (42 Layers)</strong>
-                    <div className={`arch-layer-detail ${state.data?.layer != null ? "active" : ""}`}>
-                      <div>
-                        <strong>Layer {state.data?.layer ?? "N"}</strong>
-                        {state.data?.layer != null && <span className="steering-badge">⚡ Steering</span>}
-                      </div>
-                      <div className="layer-info">
-                        <div>Multi-Head Attention</div>
-                        <div>Feed-Forward Network</div>
-                        <div>RMSNorm × 4</div>
-                      </div>
+                <div className="arch-header-section">
+                  <h3>Gemma2ForCausalLM Architecture</h3>
+                  <div className="arch-meta-grid">
+                    <div className="arch-meta-item">
+                      <span className="arch-meta-label">Model</span>
+                      <span className="arch-meta-value">{selectedModel}</span>
+                    </div>
+                    <div className="arch-meta-item">
+                      <span className="arch-meta-label">Total Layers</span>
+                      <span className="arch-meta-value">{ARCH_LAYER_COUNT}</span>
+                    </div>
+                    <div className="arch-meta-item">
+                      <span className="arch-meta-label">Hidden Size</span>
+                      <span className="arch-meta-value">3584</span>
+                    </div>
+                    <div className="arch-meta-item">
+                      <span className="arch-meta-label">Vocab Size</span>
+                      <span className="arch-meta-value">256K</span>
                     </div>
                   </div>
+                </div>
 
-                  <div className="arch-arrow">↓</div>
+                <div className="arch-flow-container">
+                  <div className="arch-flow">
+                    {/* Embedding */}
+                    <div className="arch-component-card">
+                      <strong>Token Embedding</strong>
+                      <span className="arch-detail">256K vocab → 3584 dimensions</span>
+                    </div>
 
-                  <div className="arch-box">
-                    <strong>LM Head</strong>
-                    <span>3584 → 256K logits</span>
+                    <div className="arch-flow-arrow-large">↓</div>
+
+                    {/* Decoder Stack */}
+                    <div className="arch-decoder-stack">
+                      <div className="arch-decoder-title">Transformer Decoder Stack</div>
+
+                      <div className="arch-active-layer">
+                        <div className="arch-layer-title">
+                          <strong>Layer {state.data?.layer ?? "N"} of 42</strong>
+                          {state.data?.layer != null && (
+                            <div className="arch-steering-indicator">
+                              <span>⚡</span>
+                              <span>Steering Injection Point</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="arch-layer-components">
+                          <div className="arch-component-box">
+                            <div className="box-title">Multi-Head Attention</div>
+                            <div className="box-details">
+                              <div>• input_layernorm: RMSNorm(3584)</div>
+                              <div>• Q projection: 3584 → 4096</div>
+                              <div>• K projection: 3584 → 2048</div>
+                              <div>• V projection: 3584 → 2048</div>
+                              <div>• output_proj: 4096 → 3584</div>
+                              <div>• post_attention_layernorm</div>
+                            </div>
+                          </div>
+
+                          <div className="arch-component-box">
+                            <div className="box-title">Feed-Forward Network</div>
+                            <div className="box-details">
+                              <div>• pre_feedforward_layernorm</div>
+                              <div>• gate projection: 3584 → 14336</div>
+                              <div>• up projection: 3584 → 14336</div>
+                              <div>• GELU activation</div>
+                              <div>• down projection: 14336 → 3584</div>
+                              <div>• post_feedforward_layernorm</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="arch-ellipsis">⋮</div>
+                    </div>
+
+                    <div className="arch-flow-arrow-large">↓</div>
+
+                    {/* Final Norm */}
+                    <div className="arch-component-card">
+                      <strong>Final RMSNorm</strong>
+                      <span className="arch-detail">3584 dim, eps=1e-06</span>
+                    </div>
+
+                    <div className="arch-flow-arrow-large">↓</div>
+
+                    {/* LM Head */}
+                    <div className="arch-component-card">
+                      <strong>Language Model Head</strong>
+                      <span className="arch-detail">3584 → 256K logits</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -620,8 +678,28 @@ export default function ViewerPage() {
               </div>
             </div>
           </div>
+
+          {/* Single baseline toggle for all plots */}
+          <div className="baseline-toggle-card">
+            <label>
+              <input
+                type="checkbox"
+                checked={showBaseline}
+                onChange={(e) => setShowBaseline(e.target.checked)}
+              />
+              <span>Show baseline comparison</span>
+            </label>
+          </div>
         </aside>
       </main>
+
+      {/* Prompt Selection Dialog */}
+      <PromptDialog
+        isOpen={promptDialogOpen}
+        onClose={() => setPromptDialogOpen(false)}
+        onSelect={loadPromptFromFolder}
+        currentPrompt={currentPromptFile}
+      />
     </div>
   );
 }

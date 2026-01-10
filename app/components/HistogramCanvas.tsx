@@ -22,7 +22,7 @@ export default function HistogramCanvas({ data, bins = 50, title = "Distribution
     const height = canvas.height;
     ctx.clearRect(0, 0, width, height);
 
-    ctx.fillStyle = "#fdfbf8";
+    ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, width, height);
 
     const padding = { top: 40, right: 40, bottom: 50, left: 60 };

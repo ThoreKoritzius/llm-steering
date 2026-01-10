@@ -127,7 +127,7 @@ export default function FrameCanvas({ row, data, vmin, vmax, options = {} }: Fra
 
   return (
     <div className="canvas-wrap">
-      <canvas ref={canvasRef} width="1920" height="1080"></canvas>
+      <canvas ref={canvasRef} width="1920" height="520"></canvas>
     </div>
   );
 }
