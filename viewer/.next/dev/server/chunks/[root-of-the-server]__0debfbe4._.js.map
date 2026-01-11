@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 58, "column": 0}, "map": {"version":3,"sources":["file:///Users/thore/Documents/projects/Lethonium/steering-viewer-nextjs/app/api/prompts/route.ts"],"sourcesContent":["import { NextResponse } from \"next/server\";\nimport fs from \"fs\";\nimport path from \"path\";\n\nexport async function GET() {\n  try {\n    const promptsDir = path.join(process.cwd(), \"public/data/prompts\");\n    const folders = fs\n      .readdirSync(promptsDir, { withFileTypes: true })\n      .filter((dirent) => dirent.isDirectory())\n      .map((dirent) => dirent.name);\n\n    return NextResponse.json(folders);\n  } catch (error) {\n    console.error(\"Error reading prompts directory:\", error);\n    return NextResponse.json([], { status: 500 });\n  }\n}\n"],"names":[],"mappings":";;;;AAAA;AACA;AACA;;;;AAEO,eAAe;IACpB,IAAI;QACF,MAAM,aAAa,4GAAI,CAAC,IAAI,CAAC,QAAQ,GAAG,IAAI;QAC5C,MAAM,UAAU,wGAAE,CACf,WAAW,CAAC,YAAY;YAAE,eAAe;QAAK,GAC9C,MAAM,CAAC,CAAC,SAAW,OAAO,WAAW,IACrC,GAAG,CAAC,CAAC,SAAW,OAAO,IAAI;QAE9B,OAAO,gJAAY,CAAC,IAAI,CAAC;IAC3B,EAAE,OAAO,OAAO;QACd,QAAQ,KAAK,CAAC,oCAAoC;QAClD,OAAO,gJAAY,CAAC,IAAI,CAAC,EAAE,EAAE;YAAE,QAAQ;QAAI;IAC7C;AACF"}}]
+}
