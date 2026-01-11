@@ -1,3 +1,11 @@
+# Model Steering Demo
+
+This repository demonstrates the use of [neuronpedia](https://www.neuronpedia.org), an open platform leveraging autoencoders to extract and visualize model features. You can search for any feature within neuronpedia, download a corresponding steering vector, and then use it to steer model outputs. 
+
+In this example, we use a steering vector for layer 9 of the Gemma-9b-Instruct model to amplify "cat" behavior in the model. See `steering.ipynb` for experimental results and guidance on using your own vectors.
+
+Additionally, this project includes a Steering Explorer built with Next.js to help observe and interactively analyze behavior shifts.
+
 # Steering Viewer - Next.js
 
 This application renders steering sweep data with interactive visualizations, showing how model steering affects token probabilities.
